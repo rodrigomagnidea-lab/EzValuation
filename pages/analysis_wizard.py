@@ -19,7 +19,8 @@ from utils.valuation import (
     evaluate_criterion_value,
     calculate_weighted_score,
     gordon_growth_model,
-    ipca_plus_valuation
+    ipca_plus_valuation,
+    get_market_index_value
 )
 from fpdf import FPDF
 import json
@@ -425,6 +426,21 @@ def valuation_tab(supabase):
     
     st.subheader("💰 Calculadora de Valuation")
     
+    # Exibir índices atuais
+    st.info("📈 Índices de mercado são carregados automaticamente do banco de dados.")
+    
+    # Buscar índices atuais para exibição
+    ipca_value = get_market_index_value(supabase, 'IPCA', 0.045)
+    ntnb_value = get_market_index_value(supabase, 'NTN-B', 0.06)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("IPCA Atual", f"{ipca_value * 100:.2f}%")
+    with col2:
+        st.metric("NTN-B Atual", f"{ntnb_value * 100:.2f}%")
+    
+    st.markdown("---")
+    
     st.markdown("### Modelo Gordon (Perpetuidade)")
     
     col1, col2, col3 = st.columns(3)
@@ -432,7 +448,7 @@ def valuation_tab(supabase):
     with col1:
         dividend = st.number_input("Dividendo Mensal (R$)", value=1.0, step=0.01, key="gordon_div")
     with col2:
-        growth = st.number_input("Taxa Crescimento (%)", value=3.0, step=0.1, key="gordon_growth") / 100
+        growth = st.number_input("Taxa Crescimento (%)", value=ipca_value * 100, step=0.1, key="gordon_growth") / 100
     with col3:
         discount = st.number_input("Taxa Desconto (%)", value=10.0, step=0.1, key="gordon_discount") / 100
     
@@ -448,31 +464,26 @@ def valuation_tab(supabase):
     
     # IPCA+ Valuation
     st.markdown("### Modelo IPCA+")
+    st.caption("Os valores de IPCA são buscados automaticamente do banco de dados.")
     
-    active_methodology = get_active_methodology(supabase)
-    
-    if active_methodology:
-        indices = active_methodology.get('indices', {})
-        default_ipca = indices.get('ipca', 0.045) * 100
-        default_ntnb = indices.get('ntnbReal', 0.06) * 100
-    else:
-        default_ipca = 4.5
-        default_ntnb = 6.0
-    
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     
     with col1:
         ipca_div = st.number_input("Dividendo Mensal (R$)", value=1.0, step=0.01, key="ipca_div")
     with col2:
-        ipca_rate = st.number_input("IPCA (%)", value=default_ipca, step=0.1, key="ipca_rate") / 100
-    with col3:
-        premium = st.number_input("Prêmio sobre IPCA (%)", value=default_ntnb, step=0.1, key="premium") / 100
+        premium = st.number_input(
+            "Prêmio sobre IPCA (%)",
+            value=ntnb_value * 100,
+            step=0.1,
+            key="premium",
+            help="Spread desejado acima do IPCA"
+        ) / 100
     
     if st.button("Calcular IPCA+", key="calc_ipca"):
-        result = ipca_plus_valuation(ipca_div, ipca_rate, premium, years=10)
+        result = ipca_plus_valuation(supabase, ipca_div, premium, years=10)
         
         st.success(f"✅ Valor Justo: **R$ {result['fair_value']:.2f}** por cota")
-        st.info(f"Retorno Anual Esperado: {result['annual_return'] * 100:.2f}%")
+        st.info(f"IPCA Utilizado: {result['ipca_used'] * 100:.2f}% | Retorno Anual: {result['annual_return'] * 100:.2f}%")
         
         # Gráfico de dividendos projetados
         import plotly.graph_objects as go
@@ -483,14 +494,16 @@ def valuation_tab(supabase):
         fig.add_trace(go.Bar(
             x=years,
             y=result['projected_dividends'],
-            name='Dividendos Projetados'
+            name='Dividendos Projetados',
+            marker_color='#1f77b4'
         ))
         
         fig.update_layout(
             title="Projeção de Dividendos (10 anos)",
             xaxis_title="Ano",
             yaxis_title="Dividendo Anual (R$)",
-            height=400
+            height=400,
+            showlegend=False
         )
         
         st.plotly_chart(fig, use_container_width=True)

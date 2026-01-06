@@ -52,13 +52,12 @@ def get_all_methodologies(supabase: Client) -> List[Dict]:
         return []
 
 
-def create_methodology(supabase: Client, version: str, indices: dict) -> Optional[Dict]:
+def create_methodology(supabase: Client, version: str) -> Optional[Dict]:
     """Cria uma nova metodologia."""
     try:
         response = supabase.table('methodology_config').insert({
             'version': version,
-            'is_active': False,
-            'indices': indices
+            'is_active': False
         }).execute()
         return response.data[0] if response.data else None
     except Exception as e:
@@ -83,6 +82,64 @@ def set_active_methodology(supabase: Client, methodology_id: str):
     except Exception as e:
         st.error(f"Erro ao ativar metodologia: {str(e)}")
         return False
+
+
+# ==================== MARKET INDICES ====================
+
+def get_market_indices(supabase: Client) -> List[Dict]:
+    """Retorna todos os índices de mercado cadastrados."""
+    try:
+        response = supabase.table('market_indices')\
+            .select('*')\
+            .order('name')\
+            .execute()
+        return response.data if response.data else []
+    except Exception as e:
+        st.error(f"Erro ao buscar índices de mercado: {str(e)}")
+        return []
+
+
+def get_market_index_by_name(supabase: Client, name: str) -> Optional[Dict]:
+    """Retorna um índice específico pelo nome."""
+    try:
+        response = supabase.table('market_indices')\
+            .select('*')\
+            .eq('name', name)\
+            .limit(1)\
+            .execute()
+        
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        return None
+    except Exception as e:
+        st.error(f"Erro ao buscar índice {name}: {str(e)}")
+        return None
+
+
+def update_market_index(supabase: Client, index_id: str, new_value: float) -> Optional[Dict]:
+    """Atualiza o valor de um índice de mercado."""
+    try:
+        response = supabase.table('market_indices').update({
+            'value': new_value
+        }).eq('id', index_id).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        st.error(f"Erro ao atualizar índice: {str(e)}")
+        return None
+
+
+def get_market_indices_dict(supabase: Client) -> Dict[str, float]:
+    """
+    Retorna os índices de mercado como um dicionário {nome: valor}.
+    Útil para cálculos de valuation.
+    """
+    try:
+        indices = get_market_indices(supabase)
+        return {idx['name']: float(idx['value']) for idx in indices}
+    except Exception as e:
+        st.error(f"Erro ao processar índices: {str(e)}")
+        return {}
+
 
 
 # ==================== PILLARS ====================

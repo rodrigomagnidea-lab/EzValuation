@@ -132,7 +132,8 @@ def show_main_app():
                     "📊 Nova Análise",
                     "📂 Minhas Análises",
                     "💰 Valuation",
-                    "🔧 Admin: Metodologias"
+                    "🔧 Admin: Metodologias",
+                    "📈 Admin: Índices"
                 ],
                 label_visibility="collapsed"
             )
@@ -165,6 +166,10 @@ def show_main_app():
     if page == "🔧 Admin: Metodologias":
         from pages import admin_methodology
         admin_methodology.main()
+    
+    elif page == "📈 Admin: Índices":
+        from pages import admin_indices
+        admin_indices.main()
     
     elif page in ["📊 Nova Análise", "📂 Minhas Análises", "💰 Valuation"]:
         from pages import analysis_wizard

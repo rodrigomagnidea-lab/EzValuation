@@ -51,24 +51,24 @@ def manage_methodologies_tab(supabase):
     
     # Criar nova metodologia
     with st.expander("➕ Criar Nova Metodologia", expanded=False):
-        col1, col2, col3 = st.columns([2, 1, 1])
+        new_version = st.text_input(
+            "Versão da Metodologia",
+            placeholder="Ex: FII Tijolo v1.3",
+            key="new_version",
+            help="Escolha um nome descritivo para a versão da metodologia"
+        )
         
-        with col1:
-            new_version = st.text_input("Versão", placeholder="Ex: FII Tijolo v1.3", key="new_version")
-        with col2:
-            ipca = st.number_input("IPCA (%)", value=4.5, step=0.1, key="new_ipca")
-        with col3:
-            ntnb = st.number_input("NTN-B Real (%)", value=6.0, step=0.1, key="new_ntnb")
+        st.caption("💡 Os índices de mercado (IPCA, NTN-B, CDI, etc) são configurados globalmente na página 'Admin: Índices'.")
         
         if st.button("Criar Metodologia", type="primary"):
             if new_version:
-                indices = {"ipca": ipca / 100, "ntnbReal": ntnb / 100}
-                result = create_methodology(supabase, new_version, indices)
+                result = create_methodology(supabase, new_version)
                 if result:
                     st.success(f"✅ Metodologia '{new_version}' criada com sucesso!")
                     st.rerun()
             else:
                 st.error("Por favor, informe a versão da metodologia.")
+
     
     st.markdown("---")
     
@@ -92,26 +92,20 @@ def manage_methodologies_tab(supabase):
     if selected_version:
         selected_methodology = methodology_options[selected_version]
         
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            if not selected_methodology['is_active']:
-                if st.button("✅ Ativar esta Metodologia", type="primary"):
-                    if set_active_methodology(supabase, selected_methodology['id']):
-                        st.success("Metodologia ativada!")
-                        st.rerun()
-            else:
-                st.success("✅ Esta é a metodologia ativa")
-        
-        with col2:
-            indices = selected_methodology.get('indices', {})
-            st.metric("IPCA", f"{indices.get('ipca', 0) * 100:.2f}%")
-            st.metric("NTN-B Real", f"{indices.get('ntnbReal', 0) * 100:.2f}%")
+        # Ativar/indicar metodologia ativa
+        if not selected_methodology['is_active']:
+            if st.button("✅ Ativar esta Metodologia", type="primary"):
+                if set_active_methodology(supabase, selected_methodology['id']):
+                    st.success("Metodologia ativada!")
+                    st.rerun()
+        else:
+            st.success("✅ Esta é a metodologia ativa")
         
         st.markdown("---")
         
         # Gerenciar Pilares desta metodologia
         manage_pillars(supabase, selected_methodology['id'])
+
 
 
 def manage_pillars(supabase, methodology_id):
@@ -386,14 +380,10 @@ def preview_methodology_tab(supabase):
         status = "🟢 ATIVA" if tree['is_active'] else "⚪ Inativa"
         st.markdown(f"**Status:** {status}")
         
-        indices = tree.get('indices', {})
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("IPCA", f"{indices.get('ipca', 0) * 100:.2f}%")
-        with col2:
-            st.metric("NTN-B Real", f"{indices.get('ntnbReal', 0) * 100:.2f}%")
+        st.caption("💡 Os índices de mercado (IPCA, NTN-B, etc) são gerenciados globalmente na página 'Admin: Índices'.")
         
         st.markdown("---")
+
         
         # Exibir pilares
         if 'pillars' not in tree or not tree['pillars']:

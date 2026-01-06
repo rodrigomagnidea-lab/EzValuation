@@ -1,10 +1,13 @@
 """
 Módulo de Valuation
 Implementa modelos financeiros para avaliação de Fundos Imobiliários.
+Índices de mercado são obtidos da tabela global market_indices.
 """
 import yfinance as yf
 from typing import Optional, Dict
 import pandas as pd
+import streamlit as st
+from supabase import Client
 
 
 def get_fii_data(ticker: str) -> Optional[Dict]:
@@ -36,6 +39,36 @@ def get_fii_data(ticker: str) -> Optional[Dict]:
         }
     except Exception as e:
         return None
+
+
+def get_market_index_value(supabase: Client, index_name: str, default: float = 0.0) -> float:
+    """
+    Busca o valor de um índice de mercado do banco de dados.
+    
+    Args:
+        supabase: Cliente Supabase
+        index_name: Nome do índice (ex: 'IPCA', 'NTN-B', 'CDI')
+        default: Valor padrão caso não encontre
+        
+    Returns:
+        float: Valor do índice em formato decimal (ex: 0.045 para 4.5%)
+    """
+    try:
+        response = supabase.table('market_indices')\
+            .select('value')\
+            .eq('name', index_name)\
+            .limit(1)\
+            .execute()
+        
+        if response.data and len(response.data) > 0:
+            # Converter para decimal (dividir por 100 se estiver em %)
+            value = float(response.data[0]['value'])
+            # Assumir que valores maiores que 1 estão em % e precisam ser convertidos
+            return value / 100 if value > 1 else value
+        return default
+    except Exception as e:
+        st.warning(f"Não foi possível buscar índice {index_name}, usando valor padrão {default}")
+        return default
 
 
 def gordon_growth_model(dividend: float, growth_rate: float, discount_rate: float) -> float:
@@ -87,14 +120,15 @@ def fcfe_valuation(fcfe_list: list, discount_rate: float, terminal_growth: float
     return pv + pv_terminal
 
 
-def ipca_plus_valuation(dividend: float, ipca: float, premium: float, years: int = 10) -> Dict:
+def ipca_plus_valuation(supabase: Client, dividend: float, premium: float, years: int = 10) -> Dict:
     """
     Calcula valuation usando IPCA + spread.
     Desconta dividendos futuros corrigidos pelo IPCA + prêmio.
+    Busca o valor atual de IPCA do banco de dados.
     
     Args:
+        supabase: Cliente Supabase para buscar índices
         dividend: Dividendo atual mensal
-        ipca: Taxa IPCA esperada (decimal, ex: 0.045 para 4.5%)
         premium: Prêmio sobre IPCA (decimal, ex: 0.06 para 6%)
         years: Período de projeção
         
@@ -102,9 +136,13 @@ def ipca_plus_valuation(dividend: float, ipca: float, premium: float, years: int
         dict: {
             'fair_value': valor justo por cota,
             'annual_return': retorno anual esperado,
-            'projected_dividends': lista de dividendos projetados
+            'projected_dividends': lista de dividendos projetados,
+            'ipca_used': valor do IPCA utilizado
         }
     """
+    # Buscar IPCA atual do banco
+    ipca = get_market_index_value(supabase, 'IPCA', default=0.045)
+    
     discount_rate = ipca + premium
     annual_dividend = dividend * 12
     
@@ -129,22 +167,34 @@ def ipca_plus_valuation(dividend: float, ipca: float, premium: float, years: int
         'fair_value': fair_value,
         'annual_return': discount_rate,
         'projected_dividends': projected_dividends,
-        'terminal_value': terminal_value
+        'terminal_value': terminal_value,
+        'ipca_used': ipca
     }
 
 
-def calculate_ntnb_spread(fii_yield: float, ntnb_yield: float) -> float:
+def calculate_ntnb_spread(supabase: Client, fii_yield: float) -> Dict:
     """
     Calcula o spread entre yield do FII e NTN-B.
+    Busca o valor atual da NTN-B do banco de dados.
     
     Args:
+        supabase: Cliente Supabase para buscar índices
         fii_yield: Dividend yield do FII (decimal)
-        ntnb_yield: Yield da NTN-B (decimal)
         
     Returns:
-        float: Spread em pontos percentuais
+        dict: {
+            'spread': spread em pontos percentuais,
+            'ntnb_yield': yield da NTN-B utilizado,
+            'fii_yield': yield do FII
+        }
     """
-    return (fii_yield - ntnb_yield) * 100
+    ntnb_yield = get_market_index_value(supabase, 'NTN-B', default=0.06)
+    
+    return {
+        'spread': (fii_yield - ntnb_yield) * 100,
+        'ntnb_yield': ntnb_yield,
+        'fii_yield': fii_yield
+    }
 
 
 def calculate_cap_rate(noi: float, property_value: float) -> float:
@@ -258,3 +308,28 @@ def evaluate_criterion_value(value, ranges: list) -> Optional[Dict]:
         return None
     except:
         return None
+
+
+def get_all_market_indices_for_display(supabase: Client) -> Dict[str, str]:
+    """
+    Retorna todos os índices formatados para exibição.
+    
+    Args:
+        supabase: Cliente Supabase
+        
+    Returns:
+        dict: {nome: 'valor%'}
+    """
+    try:
+        response = supabase.table('market_indices')\
+            .select('name, value, unit')\
+            .execute()
+        
+        if response.data:
+            return {
+                idx['name']: f"{float(idx['value']):.2f}{idx.get('unit', '%')}"
+                for idx in response.data
+            }
+        return {}
+    except:
+        return {}
