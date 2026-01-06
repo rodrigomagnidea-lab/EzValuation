@@ -1,135 +1,56 @@
-"""
-Página de Administração de Índices de Mercado
-Permite ao Admin visualizar e editar os índices de mercado (IPCA, NTN-B, CDI, etc).
-"""
 import streamlit as st
-from utils.auth import require_admin
-from utils.db import get_supabase_client, get_market_indices, update_market_index
+import time
+from utils.db import get_market_indices, update_market_index
 
-
-def main():
-    """Função principal da página de índices."""
-    require_admin()
+def show_admin_indices():
+    st.title("📈 Admin: Índices de Mercado")
+    st.markdown("Gerencie as taxas globais usadas em todas as metodologias.")
     
-    st.title("📈 Gerenciamento de Índices de Mercado")
-    st.markdown("Configure os índices de mercado que serão utilizados nos cálculos de valuation.")
-    st.markdown("---")
-    
-    # Inicializar cliente Supabase
-    supabase = get_supabase_client()
-    
-    # Buscar índices atuais
-    indices = get_market_indices(supabase)
-    
-    if not indices:
-        st.info("Nenhum índice cadastrado ainda. Os índices devem ser criados via SQL.")
-        st.code("""
--- Exemplo de inserção de índices:
-INSERT INTO market_indices (name, value, unit, description) VALUES
-('IPCA', 4.5, '%', 'Índice de Preços ao Consumidor Amplo'),
-('NTN-B', 6.0, '%', 'Tesouro IPCA+ (NTN-B)'),
-('CDI', 10.5, '%', 'Certificado de Depósito Interbancário'),
-('SELIC', 10.75, '%', 'Taxa básica de juros');
-        """, language="sql")
+    # Busca os índices atuais do banco
+    try:
+        indices = get_market_indices()
+    except Exception as e:
+        st.error(f"Erro ao conectar no banco: {e}")
         return
-    
-    st.success(f"✅ {len(indices)} índice(s) cadastrado(s)")
-    st.markdown("---")
-    
-    # Exibir e editar cada índice
-    st.subheader("📊 Índices Disponíveis")
-    
-    # Organizar em colunas para melhor visualização
-    cols_per_row = 2
-    
-    for i in range(0, len(indices), cols_per_row):
-        cols = st.columns(cols_per_row)
-        
-        for j in range(cols_per_row):
-            idx = i + j
-            if idx < len(indices):
-                index = indices[idx]
+
+    if not indices:
+        st.warning("Nenhum índice encontrado. Rode o script SQL de configuração.")
+        return
+
+    # Estilo visual para separar os itens
+    for idx in indices:
+        with st.container():
+            st.subheader(f"{idx['name']}")
+            
+            c1, c2 = st.columns([1, 2])
+            
+            with c1:
+                st.markdown(f"**Valor Atual:**")
+                st.markdown(f"### {float(idx['value']):.2f}%")
+            
+            with c2:
+                # Aqui está a mágica da formatação: format="%.2f"
+                # O usuário vê sempre 2 casas. Se digitar 4.6, vira 4.60 automaticamente.
+                new_val = st.number_input(
+                    f"Novo valor para {idx['name']}",
+                    value=float(idx['value']),
+                    format="%.2f", 
+                    step=0.01,
+                    key=f"input_{idx['id']}"
+                )
                 
-                with cols[j]:
-                    render_index_card(supabase, index)
-    
-    st.markdown("---")
-    
-    # Histórico de atualizações
-    with st.expander("📜 Histórico de Atualizações"):
-        st.info("Funcionalidade de histórico será implementada em versão futura.")
-        st.caption("Todas as alterações são registradas automaticamente com timestamp.")
-
-
-def render_index_card(supabase, index):
-    """Renderiza um card editável para um índice."""
-    
-    with st.container():
-        # Header do card
-        st.markdown(f"### {index['name']}")
-        
-        if index.get('description'):
-            st.caption(index['description'])
-        
-        # Valor atual destacado
-        current_value = float(index['value'])
-        unit = index.get('unit', '%')
-        
-        st.metric(
-            label="Valor Atual",
-            value=f"{current_value:.2f}{unit}",
-            delta=None
-        )
-        
-        # Formulário de edição
-        with st.form(key=f"form_{index['id']}"):
-            st.markdown("**Atualizar Valor:**")
+                if st.button(f"💾 Atualizar {idx['name']}", key=f"btn_{idx['id']}"):
+                    try:
+                        # Envia para o banco
+                        update_market_index(idx['name'], new_val)
+                        st.success(f"✅ {idx['name']} atualizado para {new_val:.2f}%!")
+                        time.sleep(1) # Dá um tempinho para ler a mensagem
+                        st.rerun()    # Recarrega a página para mostrar o valor novo
+                    except Exception as e:
+                        # Agora o erro vai mostrar o DETALHE real se falhar
+                        st.error(f"❌ Falha ao salvar: {e}")
             
-            new_value = st.number_input(
-                f"Novo valor ({unit})",
-                value=current_value,
-                step=0.01,
-                format="%.2f",
-                key=f"input_{index['id']}"
-            )
-            
-            col1, col2 = st.columns([1, 1])
-            
-            with col1:
-                submit = st.form_submit_button(
-                    "💾 Atualizar",
-                    type="primary",
-                    use_container_width=True
-                )
-            
-            with col2:
-                info = st.form_submit_button(
-                    "ℹ️ Info",
-                    use_container_width=True
-                )
-            
-            if submit:
-                if new_value != current_value:
-                    result = update_market_index(supabase, index['id'], new_value)
-                    if result:
-                        st.success(f"✅ {index['name']} atualizado para {new_value:.2f}{unit}")
-                        st.rerun()
-                    else:
-                        st.error("❌ Erro ao atualizar índice.")
-                else:
-                    st.info("⚠️ Valor não foi alterado.")
-            
-            if info:
-                st.info(f"""
-**Informações do Índice:**
-- **ID**: {index['id']}
-- **Nome**: {index['name']}
-- **Unidade**: {unit}
-- **Última atualização**: {index.get('updated_at', 'N/A')}
-                """)
-        
-        st.markdown("---")
-
+            st.divider()
 
 if __name__ == "__main__":
-    main()
+    show_admin_indices()
