@@ -32,8 +32,8 @@ def show_analysis_wizard():
         return
 
     # DEFENSIVO: Usa .get() para evitar KeyError se o campo 'name' não existir
-    # Tenta 'name' e 'Name' (case variations) e fallback para "Sem Nome"
-    met_name = methodology.get('name') or methodology.get('Name') or "Sem Nome (Verifique estrutura do DB)"
+    # Tenta 'name', 'version' (campo real no DB), 'Name' e fallback para "Sem Nome"
+    met_name = methodology.get('name') or methodology.get('version') or methodology.get('Name') or "Sem Nome"
     st.markdown(f"**Metodologia Ativa:** `{met_name}`")
     st.markdown("---")
 
