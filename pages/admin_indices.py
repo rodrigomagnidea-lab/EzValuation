@@ -29,13 +29,36 @@ def save_new_index_callback():
 
 
 def delete_index_callback(index_id, index_name):
-    """Callback para deletar índice."""
+    """Callback para marcar índice para confirmação de exclusão."""
+    # Apenas marca para confirmação, não deleta ainda
+    st.session_state['pending_delete'] = {
+        'index_id': index_id,
+        'index_name': index_name
+    }
+
+
+def confirm_delete_callback():
+    """Callback que realmente executa a exclusão após confirmação."""
     supabase = st.session_state['supabase']
+    pending = st.session_state.get('pending_delete')
+    confirmation_text = st.session_state.get('delete_confirmation_input', '')
     
-    if delete_market_index(supabase, index_id):
-        st.toast(f"🗑️ Índice '{index_name}' deletado!", icon="✅")
-    else:
-        st.error("Erro ao deletar índice")
+    if pending and confirmation_text == "DELETAR":
+        if delete_market_index(supabase, pending['index_id']):
+            st.toast(f"🗑️ Índice '{pending['index_name']}' deletado!", icon="✅")
+            # Limpa o estado de confirmação
+            st.session_state['pending_delete'] = None
+            st.session_state['delete_confirmation_input'] = ''
+        else:
+            st.error("Erro ao deletar índice")
+    elif confirmation_text != "DELETAR":
+        st.warning("Digite exatamente 'DELETAR' para confirmar.")
+
+
+def cancel_delete_callback():
+    """Callback para cancelar a exclusão."""
+    st.session_state['pending_delete'] = None
+    st.session_state['delete_confirmation_input'] = ''
 
 
 def update_index_callback(index_id, index_name):
@@ -97,8 +120,43 @@ def show_admin_indices():
                 on_click=save_new_index_callback,
                 type="primary"
             )
-
-    st.markdown("---") 
+    st.markdown("---")
+    
+    # === CONFIRMAÇÃO DE EXCLUSÃO (Se houver índice marcado para deletar) ===
+    if st.session_state.get('pending_delete'):
+        pending = st.session_state['pending_delete']
+        
+        st.warning(f"⚠️ **CONFIRMAR EXCLUSÃO:** Você está prestes a deletar o índice **'{pending['index_name']}'**")
+        
+        c_conf1, c_conf2, c_conf3 = st.columns([2, 1, 1])
+        
+        with c_conf1:
+            st.text_input(
+                "Digite DELETAR para confirmar:",
+                key="delete_confirmation_input",
+                placeholder="DELETAR",
+                label_visibility="collapsed"
+            )
+        
+        with c_conf2:
+            st.button(
+                "✅ Confirmar",
+                key="btn_confirm_delete",
+                on_click=confirm_delete_callback,
+                type="primary",
+                use_container_width=True
+            )
+        
+        with c_conf3:
+            st.button(
+                "❌ Cancelar",
+                key="btn_cancel_delete",
+                on_click=cancel_delete_callback,
+                use_container_width=True
+            )
+        
+        st.markdown("---")
+ 
 
     # === TABELA DE EDIÇÃO ===
     try:
