@@ -111,18 +111,15 @@ def show_main_app():
     # Conteúdo principal baseado na página selecionada
     
     if page == "🔧 Admin: Metodologias":
-        from pages import admin_methodology
-        # CORREÇÃO: Chama a função correta do novo arquivo
+        from interfaces import admin_methodology
         admin_methodology.show_admin_methodology()
     
     elif page == "📈 Admin: Índices":
-        from pages import admin_indices
-        # CORREÇÃO: Chama a função correta
+        from interfaces import admin_indices
         admin_indices.show_admin_indices()
     
     elif page in ["📊 Nova Análise", "📂 Minhas Análises", "💰 Valuation"]:
-        from pages import analysis_wizard
-        # CORREÇÃO: Chama a função correta do novo arquivo do Wizard
+        from interfaces import analysis_wizard
         analysis_wizard.show_analysis_wizard()
     
     else:
