@@ -1,7 +1,6 @@
-streamlit==1.31.0
-supabase==2.3.4
-pandas==2.2.0
-yfinance==0.2.36
-fpdf2==2.7.8
-plotly==5.18.0
-python-dotenv==1.0.1
+streamlit
+supabase
+pandas
+yfinance
+plotly
+fpdf2
