@@ -1,26 +1,33 @@
 import streamlit as st
 from supabase import create_client, Client
 
-# --- CONEXÃO COM SUPABASE ---
+# --- 1. CONEXÃO COM SUPABASE (BLINDADA) ---
 @st.cache_resource
 def get_supabase_client() -> Client:
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
+    # Tenta pegar as chaves do jeito padrão (SUPABASE_URL)
+    try:
+        url = st.secrets["SUPABASE_URL"]
+        key = st.secrets["SUPABASE_KEY"]
+    except KeyError:
+        # Se falhar, tenta pegar do jeito aninhado ([supabase] url=...)
+        try:
+            url = st.secrets["supabase"]["url"]
+            key = st.secrets["supabase"]["key"]
+        except KeyError:
+            st.error("❌ Erro Crítico: Chaves do Supabase não encontradas nos Secrets.")
+            st.stop()
     return create_client(url, key)
 
-# --- FUNÇÕES DE ÍNDICES (Já existiam) ---
+# --- 2. FUNÇÕES DE ÍNDICES ---
 def get_market_indices(supabase):
     try:
         response = supabase.table("market_indices").select("*").order("name").execute()
         return response.data
     except Exception as e:
-        st.error(f"Erro DB: {e}")
         return []
 
-# --- NOVAS FUNÇÕES: METODOLOGIA E ESTRUTURA ---
-
+# --- 3. FUNÇÕES DE METODOLOGIA (O que estava faltando!) ---
 def get_methodologies(supabase):
-    """Busca todas as metodologias cadastradas."""
     try:
         response = supabase.table("methodology_config").select("*").order("created_at").execute()
         return response.data
@@ -28,7 +35,6 @@ def get_methodologies(supabase):
         return []
 
 def get_pillars_by_methodology(supabase, methodology_id):
-    """Busca os pilares de uma metodologia específica."""
     try:
         response = supabase.table("pillar_config")\
             .select("*")\
@@ -40,7 +46,6 @@ def get_pillars_by_methodology(supabase, methodology_id):
         return []
 
 def get_criteria_by_pillar(supabase, pillar_id):
-    """Busca os critérios de um pilar."""
     try:
         response = supabase.table("criterion_config")\
             .select("*")\
@@ -52,7 +57,6 @@ def get_criteria_by_pillar(supabase, pillar_id):
         return []
 
 def get_thresholds_by_criterion(supabase, criterion_id):
-    """Busca as faixas de pontuação (verde/amarela/vermelha) de um critério."""
     try:
         response = supabase.table("threshold_range")\
             .select("*")\
