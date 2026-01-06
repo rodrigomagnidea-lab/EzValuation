@@ -19,16 +19,29 @@ def show_analysis_wizard():
     # 2. Buscar Metodologia Ativa
     methodology = get_active_methodology(supabase)
     
+    # --- ÁREA DE DIAGNÓSTICO (Caso algo esteja estranho) ---
+    with st.expander("🕵️ Debug: Ver dados brutos da metodologia"):
+        st.write(methodology)
+    # -------------------------------------------------------
+
     if not methodology:
         st.info("ℹ️ Nenhuma metodologia ativa encontrada.")
         st.markdown("Para começar, vá no menu **🔧 Admin: Metodologias** e crie sua primeira metodologia.")
         return
 
-    st.markdown(f"**Metodologia Ativa:** `{methodology['name']}`")
+    # CORREÇÃO DO ERRO AQUI: Usamos .get() para evitar o travamento
+    met_name = methodology.get('name', 'Sem Nome (Erro de Dados)')
+    st.markdown(f"**Metodologia Ativa:** `{met_name}`")
     st.markdown("---")
 
     # 3. Buscar Árvore Completa (Pilar -> Critério -> Faixas)
-    pillars = get_full_methodology_tree(supabase, methodology['id'])
+    # Garante que temos um ID antes de buscar
+    met_id = methodology.get('id')
+    if not met_id:
+        st.error("Erro crítico: Metodologia sem ID.")
+        return
+
+    pillars = get_full_methodology_tree(supabase, met_id)
     
     if not pillars:
         st.warning("Esta metodologia existe, mas ainda não tem pilares/critérios definidos.")
@@ -41,7 +54,7 @@ def show_analysis_wizard():
         
         for pillar in pillars:
             with st.container(border=True):
-                st.markdown(f"### 🏛️ {pillar['name']}")
+                st.markdown(f"### 🏛️ {pillar.get('name', 'Pilar sem nome')}")
                 
                 # Se não tiver critérios, avisa
                 if not pillar.get('criteria'):
@@ -49,17 +62,16 @@ def show_analysis_wizard():
                     continue
 
                 for crit in pillar['criteria']:
-                    # Cria um ID único para o input
                     cid = crit['id']
+                    crit_name = crit.get('name', 'Critério sem nome')
                     
-                    st.markdown(f"**📊 {crit['name']}**")
+                    st.markdown(f"**📊 {crit_name}**")
                     
-                    # Verifica se existem faixas (thresholds) para criar um selectbox
+                    # Verifica se existem faixas (thresholds)
                     thresholds = crit.get('thresholds', [])
                     
                     if thresholds:
-                        # Ordena as opções (ex: do maior score para o menor)
-                        # Cria um dicionário para mapear "Texto do Select" -> "Valor Numérico"
+                        # Ordena opções
                         options_map = {f"{t['label']} ({t['score']} pts)": t['score'] for t in thresholds}
                         
                         selected_label = st.selectbox(
@@ -68,10 +80,9 @@ def show_analysis_wizard():
                             key=f"sel_{cid}",
                             label_visibility="collapsed"
                         )
-                        # Salva a pontuação correspondente
                         scores[cid] = options_map[selected_label]
                     else:
-                        # Se não tiver faixas cadastradas, mostra input numérico livre
+                        # Input numérico livre
                         scores[cid] = st.number_input(
                             "Pontuação (0-10)", 
                             min_value=0.0, 
@@ -89,7 +100,6 @@ def show_analysis_wizard():
         
         if submitted:
             st.success("Cálculo realizado!")
-            # Aqui futuramente entra a lógica de salvar no banco 'analysis_data'
             st.json(scores)
 
 if __name__ == "__main__":
