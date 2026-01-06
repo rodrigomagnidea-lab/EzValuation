@@ -19,26 +19,32 @@ def show_analysis_wizard():
     # 2. Buscar Metodologia Ativa
     methodology = get_active_methodology(supabase)
     
-    # --- ÁREA DE DIAGNÓSTICO (Caso algo esteja estranho) ---
-    with st.expander("🕵️ Debug: Ver dados brutos da metodologia"):
-        st.write(methodology)
+    # --- ÁREA DE DIAGNÓSTICO (Sempre visível para debug) ---
+    with st.expander("🕵️ Debug: Dados Brutos da Metodologia"):
+        st.json(methodology if methodology else {"status": "Nenhuma metodologia encontrada"})
+        st.caption("Use isto para diagnosticar problemas de estrutura de dados.")
     # -------------------------------------------------------
 
+    # Valida se metodologia existe
     if not methodology:
         st.info("ℹ️ Nenhuma metodologia ativa encontrada.")
         st.markdown("Para começar, vá no menu **🔧 Admin: Metodologias** e crie sua primeira metodologia.")
         return
 
-    # CORREÇÃO DO ERRO AQUI: Usamos .get() para evitar o travamento
-    met_name = methodology.get('name', 'Sem Nome (Erro de Dados)')
+    # DEFENSIVO: Usa .get() para evitar KeyError se o campo 'name' não existir
+    # Tenta 'name' e 'Name' (case variations) e fallback para "Sem Nome"
+    met_name = methodology.get('name') or methodology.get('Name') or "Sem Nome (Verifique estrutura do DB)"
     st.markdown(f"**Metodologia Ativa:** `{met_name}`")
     st.markdown("---")
 
     # 3. Buscar Árvore Completa (Pilar -> Critério -> Faixas)
-    # Garante que temos um ID antes de buscar
-    met_id = methodology.get('id')
+    # DEFENSIVO: Valida que temos um ID antes de buscar
+    met_id = methodology.get('id') or methodology.get('ID')
+    
     if not met_id:
-        st.error("Erro crítico: Metodologia sem ID.")
+        st.error("❌ **Erro Crítico:** Metodologia sem ID.")
+        st.warning("A metodologia existe no banco, mas não possui um campo 'id'. Verifique a estrutura da tabela.")
+        st.stop()
         return
 
     pillars = get_full_methodology_tree(supabase, met_id)
