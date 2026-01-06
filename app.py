@@ -104,66 +104,9 @@ def show_login_page():
 def show_main_app():
     """Exibe a aplicação principal após autenticação."""
     
-    # Sidebar com navegação
-    with st.sidebar:
-        st.markdown("### 📊 EzValuation")
-        st.markdown("---")
-        
-        # Informações do usuário
-        if st.session_state.user and hasattr(st.session_state.user, 'user'):
-            user_email = st.session_state.user.user.email
-            st.markdown(f"👤 **{user_email}**")
-        
-        if st.session_state.is_admin:
-            st.success("🔧 Administrador")
-        else:
-            st.info("👤 Usuário")
-        
-        st.markdown("---")
-        
-        # Menu de navegação
-        st.subheader("🧭 Navegação")
-        
-        # Navegação baseada em role
-        if st.session_state.is_admin:
-            page = st.radio(
-                "Selecione a página:",
-                options=[
-                    "📊 Nova Análise",
-                    "📂 Minhas Análises",
-                    "💰 Valuation",
-                    "🔧 Admin: Metodologias",
-                    "📈 Admin: Índices"
-                ],
-                label_visibility="collapsed"
-            )
-        else:
-            page = st.radio(
-                "Selecione a página:",
-                options=[
-                    "📊 Nova Análise",
-                    "📂 Minhas Análises",
-                    "💰 Valuation"
-                ],
-                label_visibility="collapsed"
-            )
-        
-        st.markdown("---")
-        
-        # Botão de logout
-        if st.button("🚪 Sair", use_container_width=True):
-            try:
-                supabase = get_supabase_client()
-                logout(supabase)
-            except:
-                pass
-            st.session_state.clear()
-            st.rerun()
-        
-        # Footer
-        st.markdown("---")
-        st.caption("EzValuation v1.0")
-        st.caption("© 2026")
+    # Importa e renderiza a sidebar centralizada
+    from utils.sidebar import show_sidebar
+    page = show_sidebar()
     
     # Conteúdo principal baseado na página selecionada
     

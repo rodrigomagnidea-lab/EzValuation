@@ -81,6 +81,10 @@ def update_index_callback(index_id, index_name):
 # === INTERFACE PRINCIPAL ===
 
 def show_admin_indices():
+    # Renderiza sidebar centralizada (mantém navegação consistente)
+    from utils.sidebar import show_sidebar
+    show_sidebar()
+    
     st.title("📈 Admin: Índices de Mercado")
     
     # 1. CONEXÃO (Salva no session_state para callbacks)

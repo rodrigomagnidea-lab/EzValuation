@@ -9,14 +9,12 @@ from utils.db import (
 )
 
 def show_admin_methodology():
-    # === HEADER E LOGOUT ===
-    c_title, c_logout = st.columns([5, 1])
-    c_title.title("🛠️ Gerenciar Metodologias")
+    # Renderiza sidebar centralizada (mantém navegação consistente)
+    from utils.sidebar import show_sidebar
+    show_sidebar()
     
-    with c_logout:
-        if st.button("Sair / Logout", type="primary"):
-            st.session_state.clear()
-            st.rerun()
+    # === HEADER ===
+    st.title("🛠️ Gerenciar Metodologias")
 
     # Conexão
     try:

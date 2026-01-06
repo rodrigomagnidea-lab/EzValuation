@@ -1,11 +1,12 @@
-# Streamlit Configuration - Professional Financial Theme
-# Tons frios e sóbrios para aplicação financeira
+# Streamlit Configuration - Professional Corporate Light Theme
+# Visual claro e corporativo para aplicação financeira
 
 [theme]
-primaryColor = "#1F77B4"  # Azul financeiro sóbrio (botões principais)
-backgroundColor = "#0E1117"  # Fundo escuro profissional
-secondaryBackgroundColor = "#262730"  # Cinza escuro para sidebar/cards
-textColor = "#FAFAFA"  # Texto branco suave
+base = "light"
+primaryColor = "#0054A6"  # Azul Corporativo Forte (botões principais)
+backgroundColor = "#FFFFFF"  # Branco Limpo
+secondaryBackgroundColor = "#F0F2F6"  # Cinza Gelo para sidebar/cards
+textColor = "#31333F"  # Cinza Escuro para leitura
 font = "sans serif"
 
 [server]
