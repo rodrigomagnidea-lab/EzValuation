@@ -1,23 +1,30 @@
 import streamlit as st
 import time
-from utils.db import get_market_indices, update_market_index
+from utils.db import get_market_indices, update_market_index, get_supabase_client
 
 def show_admin_indices():
     st.title("📈 Admin: Índices de Mercado")
     st.markdown("Gerencie as taxas globais usadas em todas as metodologias.")
     
-    # Busca os índices atuais do banco
+    # 1. CONEXÃO: Criar o "crachá" do Supabase
     try:
-        indices = get_market_indices()
+        supabase = get_supabase_client()
     except Exception as e:
-        st.error(f"Erro ao conectar no banco: {e}")
+        st.error(f"Erro crítico: Não foi possível iniciar conexão com banco. Detalhes: {e}")
+        return
+
+    # 2. LEITURA: Buscar os índices passando o crachá
+    try:
+        indices = get_market_indices(supabase) # <--- AQUI ESTAVA O ERRO, agora passamos o supabase
+    except Exception as e:
+        st.error(f"Erro ao buscar índices no banco: {e}")
         return
 
     if not indices:
-        st.warning("Nenhum índice encontrado. Rode o script SQL de configuração.")
+        st.warning("Nenhum índice encontrado. Rode o script SQL de configuração no Supabase.")
         return
 
-    # Estilo visual para separar os itens
+    # 3. INTERFACE: Mostrar e editar
     for idx in indices:
         with st.container():
             st.subheader(f"{idx['name']}")
@@ -29,8 +36,7 @@ def show_admin_indices():
                 st.markdown(f"### {float(idx['value']):.2f}%")
             
             with c2:
-                # Aqui está a mágica da formatação: format="%.2f"
-                # O usuário vê sempre 2 casas. Se digitar 4.6, vira 4.60 automaticamente.
+                # Input formatado com 2 casas decimais
                 new_val = st.number_input(
                     f"Novo valor para {idx['name']}",
                     value=float(idx['value']),
@@ -41,13 +47,12 @@ def show_admin_indices():
                 
                 if st.button(f"💾 Atualizar {idx['name']}", key=f"btn_{idx['id']}"):
                     try:
-                        # Envia para o banco
-                        update_market_index(idx['name'], new_val)
+                        # 4. GRAVAÇÃO: Passamos o supabase aqui também
+                        update_market_index(supabase, idx['name'], new_val) 
                         st.success(f"✅ {idx['name']} atualizado para {new_val:.2f}%!")
-                        time.sleep(1) # Dá um tempinho para ler a mensagem
-                        st.rerun()    # Recarrega a página para mostrar o valor novo
+                        time.sleep(1)
+                        st.rerun()
                     except Exception as e:
-                        # Agora o erro vai mostrar o DETALHE real se falhar
                         st.error(f"❌ Falha ao salvar: {e}")
             
             st.divider()
