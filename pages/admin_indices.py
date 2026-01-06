@@ -12,25 +12,49 @@ def show_admin_indices():
         st.error(f"Erro de conexão: {e}")
         return
 
-    # === ÁREA DE CRIAÇÃO (Compacta e no Topo) ===
+    # === ÁREA DE CRIAÇÃO (Com Limpeza Automática) ===
     with st.expander("➕ Adicionar Novo Índice", expanded=False):
         c_new1, c_new2, c_new3 = st.columns([3, 2, 1])
+        
         with c_new1:
-            new_idx_name = st.text_input("Nome", placeholder="Ex: IGPM", label_visibility="collapsed")
+            # Adicionei a key="new_name_input" para podermos limpar depois
+            new_idx_name = st.text_input(
+                "Nome", 
+                placeholder="Ex: IGPM", 
+                label_visibility="collapsed",
+                key="new_name_input" 
+            )
+        
         with c_new2:
-            new_idx_val = st.number_input("Valor", min_value=0.0, step=0.01, format="%.2f", label_visibility="collapsed")
+            # Adicionei a key="new_val_input"
+            new_idx_val = st.number_input(
+                "Valor", 
+                min_value=0.0, 
+                step=0.01, 
+                format="%.2f", 
+                label_visibility="collapsed",
+                key="new_val_input"
+            )
+            
         with c_new3:
-            # Botão ajustado para preencher a coluna
             if st.button("Adicionar", use_container_width=True):
                 if new_idx_name:
                     try:
+                        # 1. Grava no Banco
                         supabase.table("market_indices").insert({
                             "name": new_idx_name, 
                             "value": new_idx_val
                         }).execute()
-                        st.success("Criado!")
-                        time.sleep(1)
+                        
+                        st.toast("✅ Índice criado com sucesso!", icon="✨")
+                        
+                        # 2. A VASSOURA: Limpa os campos antes de recarregar
+                        st.session_state["new_name_input"] = ""  # Limpa texto
+                        st.session_state["new_val_input"] = 0.0  # Zera número
+                        
+                        time.sleep(0.5)
                         st.rerun()
+                        
                     except Exception as e:
                         st.error(f"Erro: {e}")
                 else:
@@ -50,7 +74,6 @@ def show_admin_indices():
         return
 
     # === CABEÇALHO DA TABELA ===
-    # Isso simula o topo de uma planilha
     c_h1, c_h2, c_h3 = st.columns([3, 2, 1])
     c_h1.markdown("**Nome do Índice**")
     c_h2.markdown("**Taxa Atual (%)**")
@@ -58,11 +81,9 @@ def show_admin_indices():
     
     # === LINHAS DA TABELA ===
     for idx in indices:
-        # Cria uma linha horizontal para cada índice
         c1, c2, c3 = st.columns([3, 2, 1])
         
         with c1:
-            # Input de Nome (sem rótulo, parece célula de Excel)
             edited_name = st.text_input(
                 "Nome",
                 value=idx['name'],
@@ -71,7 +92,6 @@ def show_admin_indices():
             )
         
         with c2:
-            # Input de Valor
             edited_val = st.number_input(
                 "Valor",
                 value=float(idx['value']),
@@ -82,7 +102,6 @@ def show_admin_indices():
             )
         
         with c3:
-            # Botão Salvar (Full Width para alinhar bonito)
             if st.button("💾 Salvar", key=f"btn_{idx['id']}", use_container_width=True):
                 try:
                     supabase.table("market_indices").update({
