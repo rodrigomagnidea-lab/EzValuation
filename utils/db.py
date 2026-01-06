@@ -135,6 +135,16 @@ def update_market_index(supabase: Client, index_id: str, new_value: float) -> Op
         return None
 
 
+def delete_market_index(supabase: Client, index_id: str) -> bool:
+    """Deleta um índice de mercado."""
+    try:
+        supabase.table('market_indices').delete().eq('id', index_id).execute()
+        return True
+    except Exception as e:
+        st.error(f"Erro ao deletar índice: {str(e)}")
+        return False
+
+
 # ==================== PILLARS ====================
 
 def get_pillars_by_methodology(supabase: Client, methodology_id: str) -> List[Dict]:
