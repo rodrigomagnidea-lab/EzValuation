@@ -37,12 +37,8 @@ import json
 def show_analysis_wizard():
     """Função principal da página de análise."""
     
-    # Renderiza sidebar centralizada (mantém navegação consistente)
-    from utils.sidebar import show_sidebar
-    show_sidebar()
-    
     # OBS: Não fazemos check_authentication aqui pois o app.py já garante isso.
-    # Isso evita o looping infinito.
+    # Sidebar também é gerenciada pelo app.py - não duplicar aqui!
 
     st.title("📊 Análise de Investimentos")
     st.markdown("---")

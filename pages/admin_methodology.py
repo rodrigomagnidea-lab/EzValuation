@@ -9,9 +9,7 @@ from utils.db import (
 )
 
 def show_admin_methodology():
-    # Renderiza sidebar centralizada (mantém navegação consistente)
-    from utils.sidebar import show_sidebar
-    show_sidebar()
+    # Sidebar é gerenciada pelo app.py - não duplicar aqui!
     
     # === HEADER ===
     st.title("🛠️ Gerenciar Metodologias")
