@@ -1,438 +1,279 @@
-"""
-Página de Administração de Metodologias
-Permite ao Admin criar e gerenciar metodologias, pilares, critérios e faixas de avaliação.
-"""
 import streamlit as st
-from utils.auth import require_admin
+import time
 from utils.db import (
-    get_supabase_client,
-    get_all_methodologies,
-    create_methodology,
-    set_active_methodology,
+    get_supabase_client, 
+    get_methodologies, 
     get_pillars_by_methodology,
-    create_pillar,
-    update_pillar,
-    delete_pillar,
     get_criteria_by_pillar,
-    create_criterion,
-    update_criterion,
-    delete_criterion,
-    get_ranges_by_criterion,
-    create_range,
-    delete_range,
-    get_full_methodology_tree
+    get_thresholds_by_criterion
 )
 
+def show_admin_methodology():
+    # === HEADER E LOGOUT ===
+    c_title, c_logout = st.columns([5, 1])
+    c_title.title("🛠️ Gerenciar Metodologias")
+    
+    with c_logout:
+        if st.button("Sair / Logout", type="primary"):
+            st.session_state.clear()
+            st.rerun()
 
-def main():
-    """Função principal da página de administração."""
-    require_admin()
-    
-    st.title("🔧 Painel Administrativo - Metodologias")
-    st.markdown("---")
-    
-    # Inicializar cliente Supabase
-    supabase = get_supabase_client()
-    
-    # Tabs principais
-    tab1, tab2 = st.tabs(["📋 Gerenciar Metodologias", "👁️ Visualizar Estrutura"])
-    
-    with tab1:
-        manage_methodologies_tab(supabase)
-    
-    with tab2:
-        preview_methodology_tab(supabase)
-
-
-def manage_methodologies_tab(supabase):
-    """Tab para criar e editar metodologias."""
-    
-    st.subheader("Gerenciar Metodologias")
-    
-    # Criar nova metodologia
-    with st.expander("➕ Criar Nova Metodologia", expanded=False):
-        new_version = st.text_input(
-            "Versão da Metodologia",
-            placeholder="Ex: FII Tijolo v1.3",
-            key="new_version",
-            help="Escolha um nome descritivo para a versão da metodologia"
-        )
-        
-        st.caption("💡 Os índices de mercado (IPCA, NTN-B, CDI, etc) são configurados globalmente na página 'Admin: Índices'.")
-        
-        if st.button("Criar Metodologia", type="primary"):
-            if new_version:
-                result = create_methodology(supabase, new_version)
-                if result:
-                    st.success(f"✅ Metodologia '{new_version}' criada com sucesso!")
-                    st.rerun()
-            else:
-                st.error("Por favor, informe a versão da metodologia.")
-
-    
-    st.markdown("---")
-    
-    # Listar metodologias existentes
-    methodologies = get_all_methodologies(supabase)
-    
-    if not methodologies:
-        st.info("Nenhuma metodologia cadastrada ainda.")
+    # Conexão
+    try:
+        supabase = get_supabase_client()
+    except Exception as e:
+        st.error(f"Erro de conexão: {e}")
         return
-    
-    # Seletor de metodologia
-    st.subheader("Editar Metodologia Existente")
-    
-    methodology_options = {m['version']: m for m in methodologies}
-    selected_version = st.selectbox(
-        "Selecione uma metodologia",
-        options=list(methodology_options.keys()),
-        format_func=lambda x: f"{'🟢 ATIVA' if methodology_options[x]['is_active'] else '⚪'} {x}"
-    )
-    
-    if selected_version:
-        selected_methodology = methodology_options[selected_version]
+
+    # Abas para separar Criação de Visualização
+    tab_mng, tab_view = st.tabs(["📝 Gerenciar Estrutura", "👀 Visualizar Relatório"])
+
+    # ==============================================================================
+    # ABA 1: GERENCIAR (Criação e Edição)
+    # ==============================================================================
+    with tab_mng:
         
-        # Ativar/indicar metodologia ativa
-        if not selected_methodology['is_active']:
-            if st.button("✅ Ativar esta Metodologia", type="primary"):
-                if set_active_methodology(supabase, selected_methodology['id']):
-                    st.success("Metodologia ativada!")
+        # --- 1. SEÇÃO DE METODOLOGIAS ---
+        st.subheader("1. Metodologia")
+        
+        # Container de Criação (Expansível para não poluir)
+        with st.expander("➕ Criar Nova Metodologia", expanded=False):
+            c_new_met, c_btn_met = st.columns([4, 1])
+            new_met_name = c_new_met.text_input("Nome da Nova Metodologia", key="new_met_name", label_visibility="collapsed", placeholder="Ex: FII Tijolo - Logístico")
+            
+            if c_btn_met.button("Criar", key="btn_create_met", use_container_width=True):
+                if new_met_name:
+                    try:
+                        supabase.table("methodology_config").insert({"name": new_met_name}).execute()
+                        st.toast(f"✅ Metodologia '{new_met_name}' criada!")
+                        # Limpa o campo
+                        st.session_state["new_met_name"] = ""
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro: {e}")
+
+        # Seleção e Edição da Metodologia Atual
+        methodologies = get_methodologies(supabase)
+        if not methodologies:
+            st.info("Nenhuma metodologia criada ainda.")
+            return
+
+        met_options = {m['name']: m['id'] for m in methodologies}
+        selected_met_name = st.selectbox("Selecione a Metodologia para Editar:", list(met_options.keys()))
+        selected_met_id = met_options[selected_met_name]
+
+        # Área de Renomear/Ativar
+        with st.container(border=True):
+            c_edit1, c_edit2, c_edit3 = st.columns([3, 1, 1])
+            
+            # Renomear
+            new_name_edit = c_edit1.text_input("Editar Nome", value=selected_met_name, label_visibility="collapsed")
+            if c_edit2.button("💾 Renomear", use_container_width=True):
+                if new_name_edit != selected_met_name:
+                    supabase.table("methodology_config").update({"name": new_name_edit}).eq("id", selected_met_id).execute()
+                    st.toast("Nome atualizado!")
+                    time.sleep(1)
                     st.rerun()
+
+            # Botão de Status (Ativo/Inativo - Visual)
+            c_edit3.button("✅ Ativa", disabled=True, use_container_width=True) # Placeholder visual por enquanto
+
+        st.markdown("---")
+
+        # --- 2. SEÇÃO DE PILARES ---
+        st.subheader(f"2. Pilares de: {selected_met_name}")
+
+        # Criação de Pilar
+        with st.expander("➕ Adicionar Novo Pilar", expanded=False):
+            c_pil1, c_pil2, c_pil3 = st.columns([3, 1, 1])
+            new_pil_name = c_pil1.text_input("Nome do Pilar", key="new_pil_name", placeholder="Ex: Qualidade do Imóvel")
+            new_pil_weight = c_pil2.number_input("Peso", min_value=0.1, value=1.0, step=0.1, key="new_pil_weight")
+            
+            if c_pil3.button("Adicionar Pilar", use_container_width=True):
+                if new_pil_name:
+                    try:
+                        supabase.table("pillar_config").insert({
+                            "methodology_id": selected_met_id,
+                            "name": new_pil_name,
+                            "weight": new_pil_weight
+                        }).execute()
+                        st.toast("Pilar adicionado!")
+                        # Limpeza
+                        st.session_state["new_pil_name"] = ""
+                        st.session_state["new_pil_weight"] = 1.0
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro: {e}")
+
+        # Listagem de Pilares
+        pillars = get_pillars_by_methodology(supabase, selected_met_id)
+        
+        if not pillars:
+            st.info("Nenhum pilar cadastrado nesta metodologia.")
         else:
-            st.success("✅ Esta é a metodologia ativa")
-        
-        st.markdown("---")
-        
-        # Gerenciar Pilares desta metodologia
-        manage_pillars(supabase, selected_methodology['id'])
+            for pillar in pillars:
+                with st.container(border=True):
+                    # Cabeçalho do Pilar (Nome e Peso)
+                    c_p1, c_p2, c_p3 = st.columns([4, 1, 1])
+                    c_p1.markdown(f"**🏛️ {pillar['name']}**")
+                    c_p2.markdown(f"Peso: `{pillar['weight']}`")
+                    if c_p3.button("🗑️", key=f"del_pil_{pillar['id']}"):
+                        supabase.table("pillar_config").delete().eq("id", pillar['id']).execute()
+                        st.rerun()
 
-
-
-def manage_pillars(supabase, methodology_id):
-    """Gerencia pilares de uma metodologia."""
-    
-    st.subheader("🏛️ Pilares da Metodologia")
-    
-    # Adicionar novo pilar
-    with st.expander("➕ Adicionar Pilar", expanded=False):
-        col1, col2 = st.columns([3, 1])
-        
-        with col1:
-            pillar_name = st.text_input("Nome do Pilar", placeholder="Ex: Gestão e Governança", key="new_pillar_name")
-        with col2:
-            pillar_weight = st.number_input("Peso", value=1.0, min_value=0.1, step=0.1, key="new_pillar_weight")
-        
-        pillar_desc = st.text_area("Descrição", placeholder="Descrição do pilar...", key="new_pillar_desc")
-        
-        if st.button("Adicionar Pilar", key="add_pillar_btn"):
-            if pillar_name:
-                result = create_pillar(supabase, methodology_id, pillar_name, pillar_weight, pillar_desc)
-                if result:
-                    st.success(f"✅ Pilar '{pillar_name}' adicionado!")
-                    st.rerun()
-            else:
-                st.error("Por favor, informe o nome do pilar.")
-    
-    # Listar pilares existentes
-    pillars = get_pillars_by_methodology(supabase, methodology_id)
-    
-    if not pillars:
-        st.info("Nenhum pilar cadastrado ainda.")
-        return
-    
-    # Exibir cada pilar
-    for idx, pillar in enumerate(pillars):
-        with st.expander(f"🏛️ {pillar['name']} (Peso: {pillar['weight']})", expanded=False):
-            
-            # Editar pilar
-            col1, col2, col3 = st.columns([3, 1, 1])
-            
-            with col1:
-                edit_name = st.text_input(
-                    "Nome",
-                    value=pillar['name'],
-                    key=f"edit_pillar_name_{pillar['id']}"
-                )
-            with col2:
-                edit_weight = st.number_input(
-                    "Peso",
-                    value=float(pillar['weight']),
-                    min_value=0.1,
-                    step=0.1,
-                    key=f"edit_pillar_weight_{pillar['id']}"
-                )
-            with col3:
-                if st.button("💾 Salvar", key=f"save_pillar_{pillar['id']}"):
-                    edit_desc = st.session_state.get(f"edit_pillar_desc_{pillar['id']}", pillar.get('description', ''))
-                    update_pillar(supabase, pillar['id'], edit_name, edit_weight, edit_desc)
-                    st.success("Pilar atualizado!")
-                    st.rerun()
-            
-            edit_desc = st.text_area(
-                "Descrição",
-                value=pillar.get('description', ''),
-                key=f"edit_pillar_desc_{pillar['id']}"
-            )
-            
-            # Deletar pilar
-            if st.button(f"🗑️ Deletar Pilar '{pillar['name']}'", key=f"del_pillar_{pillar['id']}", type="secondary"):
-                delete_pillar(supabase, pillar['id'])
-                st.success("Pilar deletado!")
-                st.rerun()
-            
-            st.markdown("---")
-            
-            # Gerenciar critérios deste pilar
-            manage_criteria(supabase, pillar['id'], pillar['name'])
-
-
-def manage_criteria(supabase, pillar_id, pillar_name):
-    """Gerencia critérios de um pilar."""
-    
-    st.markdown(f"#### 📊 Critérios do Pilar: {pillar_name}")
-    
-    # Adicionar novo critério
-    with st.expander("➕ Adicionar Critério", expanded=False):
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            criterion_name = st.text_input(
-                "Nome do Critério",
-                placeholder="Ex: Histórico da Gestora",
-                key=f"new_criterion_name_{pillar_id}"
-            )
-        with col2:
-            criterion_type = st.selectbox(
-                "Tipo",
-                options=['numeric', 'percent', 'boolean', 'categorical'],
-                key=f"new_criterion_type_{pillar_id}"
-            )
-        
-        col3, col4 = st.columns([1, 3])
-        
-        with col3:
-            criterion_unit = st.text_input(
-                "Unidade",
-                placeholder="Ex: anos, %, R$",
-                key=f"new_criterion_unit_{pillar_id}"
-            )
-        with col4:
-            criterion_rule = st.text_input(
-                "Regra de Avaliação",
-                placeholder="Ex: Ideal > 10 anos de histórico",
-                key=f"new_criterion_rule_{pillar_id}"
-            )
-        
-        if st.button("Adicionar Critério", key=f"add_criterion_btn_{pillar_id}"):
-            if criterion_name:
-                result = create_criterion(
-                    supabase, pillar_id, criterion_name,
-                    criterion_type, criterion_unit, criterion_rule
-                )
-                if result:
-                    st.success(f"✅ Critério '{criterion_name}' adicionado!")
-                    st.rerun()
-            else:
-                st.error("Por favor, informe o nome do critério.")
-    
-    # Listar critérios existentes
-    criteria = get_criteria_by_pillar(supabase, pillar_id)
-    
-    if not criteria:
-        st.info(f"Nenhum critério cadastrado para o pilar '{pillar_name}'.")
-        return
-    
-    # Exibir cada critério
-    for criterion in criteria:
-        with st.container():
-            st.markdown(f"##### 📊 {criterion['name']}")
-            
-            col1, col2, col3 = st.columns([2, 1, 1])
-            
-            with col1:
-                st.text(f"Tipo: {criterion['type']} | Unidade: {criterion.get('unit', 'N/A')}")
-            with col2:
-                if st.button("✏️ Editar", key=f"edit_criterion_{criterion['id']}", type="secondary"):
-                    st.info("Use os campos abaixo para editar")
-            with col3:
-                if st.button("🗑️ Deletar", key=f"del_criterion_{criterion['id']}", type="secondary"):
-                    delete_criterion(supabase, criterion['id'])
-                    st.success("Critério deletado!")
-                    st.rerun()
-            
-            if criterion.get('rule_description'):
-                st.caption(f"📏 Regra: {criterion['rule_description']}")
-            
-            # Gerenciar faixas (ranges) deste critério
-            manage_ranges(supabase, criterion['id'], criterion['name'], criterion['type'])
-            
-            st.markdown("---")
-
-
-def manage_ranges(supabase, criterion_id, criterion_name, criterion_type):
-    """Gerencia faixas (ranges) de um critério."""
-    
-    st.markdown(f"**Faixas de Pontuação**")
-    
-    # Adicionar nova faixa
-    with st.expander("➕ Adicionar Faixa", expanded=False):
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            range_min = st.text_input("Mínimo", placeholder="0 ou 'Não'", key=f"new_range_min_{criterion_id}")
-        with col2:
-            range_max = st.text_input("Máximo", placeholder="10 ou 'Sim'", key=f"new_range_max_{criterion_id}")
-        with col3:
-            range_points = st.number_input("Pontos", value=0.0, step=0.5, key=f"new_range_points_{criterion_id}")
-        
-        col4, col5, col6 = st.columns(3)
-        
-        with col4:
-            range_label = st.text_input("Label", placeholder="Ex: Excelente", key=f"new_range_label_{criterion_id}")
-        with col5:
-            range_color = st.selectbox(
-                "Cor",
-                options=['green', 'yellow', 'red'],
-                key=f"new_range_color_{criterion_id}"
-            )
-        with col6:
-            range_impact = st.selectbox(
-                "Impacto",
-                options=['neutral', 'penalty_light', 'penalty_structural'],
-                key=f"new_range_impact_{criterion_id}"
-            )
-        
-        if st.button("Adicionar Faixa", key=f"add_range_btn_{criterion_id}"):
-            if range_label:
-                result = create_range(
-                    supabase, criterion_id,
-                    range_min if range_min else None,
-                    range_max if range_max else None,
-                    range_label, range_points, range_color, range_impact
-                )
-                if result:
-                    st.success(f"✅ Faixa '{range_label}' adicionada!")
-                    st.rerun()
-            else:
-                st.error("Por favor, informe o label da faixa.")
-    
-    # Listar faixas existentes
-    ranges = get_ranges_by_criterion(supabase, criterion_id)
-    
-    if not ranges:
-        st.warning(f"⚠️ Nenhuma faixa cadastrada para '{criterion_name}'.")
-        return
-    
-    # Exibir faixas como tabela
-    for r in ranges:
-        color_emoji = {"green": "🟢", "yellow": "🟡", "red": "🔴"}.get(r['color'], "⚪")
-        
-        col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
-        
-        with col1:
-            st.text(f"{color_emoji} {r['label']}")
-        with col2:
-            min_display = r['min'] if r['min'] else '-∞'
-            max_display = r['max'] if r['max'] else '+∞'
-            st.caption(f"[{min_display}, {max_display}]")
-        with col3:
-            st.caption(f"Pts: {r['points']}")
-        with col4:
-            st.caption(f"{r['impact']}")
-        with col5:
-            if st.button("🗑️", key=f"del_range_{r['id']}", help="Deletar faixa"):
-                delete_range(supabase, r['id'])
-                st.success("Faixa deletada!")
-                st.rerun()
-
-
-def preview_methodology_tab(supabase):
-    """Tab para visualizar a estrutura completa da metodologia."""
-    
-    st.subheader("👁️ Visualização Completa da Metodologia")
-    
-    methodologies = get_all_methodologies(supabase)
-    
-    if not methodologies:
-        st.info("Nenhuma metodologia cadastrada.")
-        return
-    
-    methodology_options = {m['version']: m for m in methodologies}
-    selected_version = st.selectbox(
-        "Selecione uma metodologia para visualizar",
-        options=list(methodology_options.keys()),
-        key="preview_selector"
-    )
-    
-    if selected_version:
-        selected_methodology = methodology_options[selected_version]
-        
-        # Buscar árvore completa
-        tree = get_full_methodology_tree(supabase, selected_methodology['id'])
-        
-        if not tree:
-            st.error("Erro ao carregar metodologia.")
-            return
-        
-        # Exibir header
-        st.markdown(f"### {tree['version']}")
-        
-        status = "🟢 ATIVA" if tree['is_active'] else "⚪ Inativa"
-        st.markdown(f"**Status:** {status}")
-        
-        st.caption("💡 Os índices de mercado (IPCA, NTN-B, etc) são gerenciados globalmente na página 'Admin: Índices'.")
-        
-        st.markdown("---")
-
-        
-        # Exibir pilares
-        if 'pillars' not in tree or not tree['pillars']:
-            st.info("Esta metodologia ainda não possui pilares.")
-            return
-        
-        for pillar in tree['pillars']:
-            with st.expander(f"🏛️ {pillar['name']} (Peso: {pillar['weight']})", expanded=True):
-                if pillar.get('description'):
-                    st.caption(pillar['description'])
-                
-                if 'criteria' not in pillar or not pillar['criteria']:
-                    st.info("Nenhum critério cadastrado neste pilar.")
-                    continue
-                
-                for criterion in pillar['criteria']:
-                    st.markdown(f"**📊 {criterion['name']}**")
-                    st.caption(f"Tipo: {criterion['type']} | Unidade: {criterion.get('unit', 'N/A')}")
+                    # --- 3. CRITÉRIOS (Dentro do Pilar) ---
+                    st.markdown("#### ↳ Critérios")
                     
-                    if criterion.get('rule_description'):
-                        st.info(f"📏 {criterion['rule_description']}")
-                    
-                    # Exibir ranges
-                    if 'ranges' in criterion and criterion['ranges']:
-                        for r in criterion['ranges']:
-                            color_map = {
-                                'green': '#28a745',
-                                'yellow': '#ffc107',
-                                'red': '#dc3545'
-                            }
-                            bg_color = color_map.get(r['color'], '#cccccc')
+                    # Criação de Critério
+                    with st.expander(f"➕ Novo Critério em '{pillar['name']}'"):
+                        c_crit1, c_crit2 = st.columns([3, 1])
+                        c_crit3, c_crit4 = st.columns([2, 2])
+                        
+                        crit_name = c_crit1.text_input("Nome", key=f"cn_{pillar['id']}")
+                        crit_weight = c_crit2.number_input("Peso", value=1.0, key=f"cw_{pillar['id']}")
+                        crit_type = c_crit3.selectbox("Tipo", ["numeric", "boolean", "options"], key=f"ct_{pillar['id']}")
+                        crit_better = c_crit4.selectbox("Melhor se...", ["Quanto Maior Melhor", "Quanto Menor Melhor"], key=f"cb_{pillar['id']}")
+                        
+                        if st.button("Salvar Critério", key=f"btn_save_crit_{pillar['id']}"):
+                            if crit_name:
+                                try:
+                                    # Mapear selection para DB
+                                    db_better = "higher" if crit_better == "Quanto Maior Melhor" else "lower"
+                                    
+                                    # Cria critério e pega ID
+                                    res = supabase.table("criterion_config").insert({
+                                        "pillar_id": pillar['id'],
+                                        "name": crit_name,
+                                        "weight": crit_weight,
+                                        "criterion_type": crit_type,
+                                        "better_direction": db_better
+                                    }).execute()
+                                    
+                                    # Tenta criar faixas automáticas padrão (Opcional, mas ajuda)
+                                    new_crit_id = res.data[0]['id']
+                                    
+                                    st.toast("Critério salvo!")
+                                    # Limpeza manual
+                                    st.session_state[f"cn_{pillar['id']}"] = ""
+                                    time.sleep(1)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro: {e}")
+
+                    # Listar Critérios Existentes
+                    criteria = get_criteria_by_pillar(supabase, pillar['id'])
+                    for crit in criteria:
+                        with st.status(f"📊 {crit['name']} (Peso: {crit['weight']})", expanded=False):
+                            c_del_crit, _ = st.columns([1, 4])
+                            if c_del_crit.button("Deletar Critério", key=f"del_crit_{crit['id']}"):
+                                supabase.table("criterion_config").delete().eq("id", crit['id']).execute()
+                                st.rerun()
+
+                            # --- 4. FAIXAS (THRESHOLDS) ---
+                            st.divider()
+                            st.caption("Faixas de Pontuação (Thresholds)")
                             
-                            min_display = r['min'] if r['min'] else '-∞'
-                            max_display = r['max'] if r['max'] else '+∞'
+                            # Form de Nova Faixa
+                            c_f1, c_f2, c_f3, c_f4, c_f5 = st.columns([2, 2, 2, 2, 1])
+                            l_label = c_f1.text_input("Label", placeholder="Ex: Bom", key=f"l_{crit['id']}")
+                            l_min = c_f2.text_input("Min", placeholder="-inf", key=f"min_{crit['id']}")
+                            l_max = c_f3.text_input("Max", placeholder="0.5", key=f"max_{crit['id']}")
+                            l_pt = c_f4.number_input("Pts", value=10.0, key=f"pt_{crit['id']}")
+                            
+                            if c_f5.button("➕", key=f"add_th_{crit['id']}"):
+                                try:
+                                    final_min = float(l_min) if l_min and l_min != "-inf" else -999999
+                                    final_max = float(l_max) if l_max and l_max != "inf" else 999999
+                                    
+                                    supabase.table("threshold_range").insert({
+                                        "criterion_id": crit['id'],
+                                        "label": l_label,
+                                        "min_value": final_min,
+                                        "max_value": final_max,
+                                        "score": l_pt,
+                                        "color": "green" if l_pt >= 7 else "yellow" if l_pt >= 5 else "red"
+                                    }).execute()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error("Erro nos números")
+
+                            # Listar Faixas
+                            thresholds = get_thresholds_by_criterion(supabase, crit['id'])
+                            if thresholds:
+                                # Tabela simples de faixas
+                                for th in thresholds:
+                                    cols = st.columns([2, 2, 2, 1])
+                                    cols[0].write(f"🏷️ {th['label']}")
+                                    cols[1].write(f"📏 {th['min_value']} a {th['max_value']}")
+                                    cols[2].write(f"⭐ {th['score']}")
+                                    if cols[3].button("🗑️", key=f"del_th_{th['id']}"):
+                                        supabase.table("threshold_range").delete().eq("id", th['id']).execute()
+                                        st.rerun()
+
+
+    # ==============================================================================
+    # ABA 2: VISUALIZAR (Layout Limpo)
+    # ==============================================================================
+    with tab_view:
+        if not methodologies:
+            st.warning("Crie uma metodologia primeiro.")
+            return
+            
+        st.markdown(f"## 📑 Relatório Estrutural: {selected_met_name}")
+        st.markdown("---")
+
+        pillars = get_pillars_by_methodology(supabase, selected_met_id)
+        
+        for pillar in pillars:
+            st.markdown(f"### 🏛️ {pillar['name']} <span style='font-size:0.7em; color:gray'>(Peso {pillar['weight']})</span>", unsafe_allow_html=True)
+            
+            criteria = get_criteria_by_pillar(supabase, pillar['id'])
+            if not criteria:
+                st.caption("Sem critérios definidos.")
+            
+            for crit in criteria:
+                # Card visual para o critério
+                with st.container(border=True):
+                    c1, c2 = st.columns([3, 1])
+                    c1.markdown(f"**📊 {crit['name']}**")
+                    c2.markdown(f"Tipo: `{crit['criterion_type']}`")
+                    
+                    thresholds = get_thresholds_by_criterion(supabase, crit['id'])
+                    if thresholds:
+                        # Visualização de faixas como "Badges" coloridos
+                        st.write("Regras de Pontuação:")
+                        for th in thresholds:
+                            color_map = {
+                                "green": "#e6f4ea",
+                                "yellow": "#fef7e0",
+                                "red": "#fce8e6",
+                                "gray": "#f1f3f4"
+                            }
+                            text_map = {
+                                "green": "#137333",
+                                "yellow": "#b06000",
+                                "red": "#c5221f",
+                                "gray": "#5f6368"
+                            }
+                            
+                            bg = color_map.get(th.get('color', 'gray'), "#f1f3f4")
+                            txt = text_map.get(th.get('color', 'gray'), "#333")
                             
                             st.markdown(
                                 f"""
-                                <div style="background-color: {bg_color}; padding: 10px; border-radius: 5px; margin: 5px 0;">
-                                    <strong>{r['label']}</strong>: [{min_display}, {max_display}] = {r['points']} pts
-                                    <br><em>{r['impact']}</em>
+                                <div style="background-color: {bg}; color: {txt}; padding: 8px; border-radius: 6px; margin-bottom: 4px; font-size: 0.9em;">
+                                    <strong>{th['label']}</strong> ({th['min_value']} a {th['max_value']}) 
+                                    <span style="float:right"><b>{th['score']} pts</b></span>
                                 </div>
-                                """,
+                                """, 
                                 unsafe_allow_html=True
                             )
                     else:
-                        st.warning("⚠️ Sem faixas definidas")
-                    
-                    st.markdown("---")
-
+                        st.caption("⚠️ Nenhuma faixa de pontuação configurada.")
+            
+            st.markdown("<br>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
-    main()
+    show_admin_methodology()
