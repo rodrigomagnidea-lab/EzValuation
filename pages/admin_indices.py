@@ -20,6 +20,7 @@ def show_admin_indices():
         with c_new2:
             new_idx_val = st.number_input("Valor", min_value=0.0, step=0.01, format="%.2f", label_visibility="collapsed")
         with c_new3:
+            # Botão ajustado para preencher a coluna
             if st.button("Adicionar", use_container_width=True):
                 if new_idx_name:
                     try:
