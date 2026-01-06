@@ -3,9 +3,8 @@ EzValuation - Investment Thesis Generator
 Aplicação principal com controle de acesso e navegação.
 """
 import streamlit as st
-from utils.auth import login, logout, is_admin, check_authentication
+from utils.auth import login, logout, is_admin
 from utils.db import get_supabase_client
-
 
 def main():
     """Função principal da aplicação."""
@@ -111,8 +110,9 @@ def show_main_app():
         st.markdown("---")
         
         # Informações do usuário
-        user_email = st.session_state.user.user.email
-        st.markdown(f"👤 **{user_email}**")
+        if st.session_state.user and hasattr(st.session_state.user, 'user'):
+            user_email = st.session_state.user.user.email
+            st.markdown(f"👤 **{user_email}**")
         
         if st.session_state.is_admin:
             st.success("🔧 Administrador")
@@ -152,9 +152,12 @@ def show_main_app():
         
         # Botão de logout
         if st.button("🚪 Sair", use_container_width=True):
-            supabase = get_supabase_client()
-            logout(supabase)
-            st.success("Logout realizado com sucesso!")
+            try:
+                supabase = get_supabase_client()
+                logout(supabase)
+            except:
+                pass
+            st.session_state.clear()
             st.rerun()
         
         # Footer
@@ -163,21 +166,24 @@ def show_main_app():
         st.caption("© 2026")
     
     # Conteúdo principal baseado na página selecionada
+    
     if page == "🔧 Admin: Metodologias":
         from pages import admin_methodology
-        admin_methodology.main()
+        # CORREÇÃO: Chama a função correta do novo arquivo
+        admin_methodology.show_admin_methodology()
     
     elif page == "📈 Admin: Índices":
-        from pages.admin_indices import show_admin_indices
-        show_admin_indices()
+        from pages import admin_indices
+        # CORREÇÃO: Chama a função correta
+        admin_indices.show_admin_indices()
     
     elif page in ["📊 Nova Análise", "📂 Minhas Análises", "💰 Valuation"]:
         from pages import analysis_wizard
-        analysis_wizard.main()
+        # CORREÇÃO: Chama a função correta do novo arquivo do Wizard
+        analysis_wizard.show_analysis_wizard()
     
     else:
         st.info("Página em desenvolvimento.")
-
 
 if __name__ == "__main__":
     main()
