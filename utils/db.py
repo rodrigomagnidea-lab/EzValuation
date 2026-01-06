@@ -100,6 +100,17 @@ def set_active_methodology(supabase: Client, methodology_id: str):
         return False
 
 
+def delete_methodology(supabase: Client, methodology_id: str) -> bool:
+    """Deleta uma metodologia e seus pilares/critérios associados."""
+    try:
+        # O Supabase deve ter CASCADE configurado, mas vamos garantir
+        supabase.table('methodology_config').delete().eq('id', methodology_id).execute()
+        return True
+    except Exception as e:
+        st.error(f"Erro ao deletar metodologia: {str(e)}")
+        return False
+
+
 # ==================== MARKET INDICES ====================
 
 def get_market_indices(supabase: Client) -> List[Dict]:
