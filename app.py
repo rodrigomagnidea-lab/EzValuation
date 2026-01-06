@@ -168,8 +168,8 @@ def show_main_app():
         admin_methodology.main()
     
     elif page == "📈 Admin: Índices":
-        from pages import admin_indices
-        admin_indices.main()
+        from pages.admin_indices import show_admin_indices
+        show_admin_indices()
     
     elif page in ["📊 Nova Análise", "📂 Minhas Análises", "💰 Valuation"]:
         from pages import analysis_wizard
