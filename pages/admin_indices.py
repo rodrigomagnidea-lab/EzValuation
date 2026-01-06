@@ -12,17 +12,15 @@ def show_admin_indices():
         st.error(f"Erro de conexão: {e}")
         return
 
-    # === ÁREA DE CRIAÇÃO (Compacta) ===
-    with st.expander("➕ Novo Índice", expanded=False):
+    # === ÁREA DE CRIAÇÃO (Compacta e no Topo) ===
+    with st.expander("➕ Adicionar Novo Índice", expanded=False):
         c_new1, c_new2, c_new3 = st.columns([3, 2, 1])
         with c_new1:
-            new_idx_name = st.text_input("Nome", placeholder="Ex: IGPM")
+            new_idx_name = st.text_input("Nome", placeholder="Ex: IGPM", label_visibility="collapsed")
         with c_new2:
-            new_idx_val = st.number_input("Valor (%)", min_value=0.0, step=0.01, format="%.2f")
+            new_idx_val = st.number_input("Valor", min_value=0.0, step=0.01, format="%.2f", label_visibility="collapsed")
         with c_new3:
-            st.write("") # Espaçamento para alinhar botão
-            st.write("") 
-            if st.button("Criar"):
+            if st.button("Adicionar", use_container_width=True):
                 if new_idx_name:
                     try:
                         supabase.table("market_indices").insert({
@@ -34,8 +32,10 @@ def show_admin_indices():
                         st.rerun()
                     except Exception as e:
                         st.error(f"Erro: {e}")
+                else:
+                    st.warning("Nome obrigatório")
 
-    st.divider()
+    st.markdown("---") 
 
     # 2. TABELA DE EDIÇÃO
     try:
@@ -48,22 +48,20 @@ def show_admin_indices():
         st.info("Nenhum índice cadastrado.")
         return
 
-    # --- CABEÇALHO DA TABELA ---
-    # Cria uma linha visual de títulos
-    c_head1, c_head2, c_head3 = st.columns([3, 2, 1])
-    c_head1.markdown("**Nome do Índice**")
-    c_head2.markdown("**Valor (%)**")
-    c_head3.markdown("**Ação**")
+    # === CABEÇALHO DA TABELA ===
+    # Isso simula o topo de uma planilha
+    c_h1, c_h2, c_h3 = st.columns([3, 2, 1])
+    c_h1.markdown("**Nome do Índice**")
+    c_h2.markdown("**Taxa Atual (%)**")
+    c_h3.markdown("**Ação**")
     
-    st.markdown("---") # Linha fina separadora
-
-    # --- LINHAS DA TABELA ---
+    # === LINHAS DA TABELA ===
     for idx in indices:
-        # Layout de Grid: 3 Colunas alinhadas
+        # Cria uma linha horizontal para cada índice
         c1, c2, c3 = st.columns([3, 2, 1])
         
         with c1:
-            # Input de Nome (sem label visível para parecer tabela)
+            # Input de Nome (sem rótulo, parece célula de Excel)
             edited_name = st.text_input(
                 "Nome",
                 value=idx['name'],
@@ -83,8 +81,7 @@ def show_admin_indices():
             )
         
         with c3:
-            # Botão Salvar Discreto
-            # O use_container_width faz o botão preencher a coluna, ficando alinhado
+            # Botão Salvar (Full Width para alinhar bonito)
             if st.button("💾 Salvar", key=f"btn_{idx['id']}", use_container_width=True):
                 try:
                     supabase.table("market_indices").update({
@@ -92,14 +89,11 @@ def show_admin_indices():
                         "value": edited_val
                     }).eq("id", idx['id']).execute()
                     
-                    st.toast(f"✅ {edited_name} salvo!", icon="💾")
+                    st.toast(f"✅ {edited_name} atualizado!", icon="💾")
                     time.sleep(0.5)
                     st.rerun()
                 except Exception as e:
-                    st.toast(f"❌ Erro: {e}")
-
-        # Pequeno divisor entre linhas (opcional, pode remover se quiser mais compacto ainda)
-        # st.divider() 
+                    st.error(f"Erro: {e}")
 
 if __name__ == "__main__":
     show_admin_indices()
